@@ -1,0 +1,130 @@
+from __future__ import print_function
+import sys
+import re
+import argparse
+from Bio import SeqIO
+from Bio import Entrez
+
+# parse the command line arguments:
+parser = argparse.ArgumentParser(description='Given a RsfSeq Nucleotide ID, return all possible guides scored')
+parser.add_argument('-r','--region', help='Transcript region with high residues conservation. Default: entire transcript', type=str, default='1:999999999')
+parser.add_argument('-m','--mut', help='Position of known mutations separated by a comma. Example: \'201,306,399\'', type=str)
+parser.add_argument('-i','--id', help='RefSeq Nucleotide ID. Example: \'NM_005334\'', nargs=1, type=str, required=True)
+args = parser.parse_args()
+
+#if args.id:
+#   print(args.id)
+
+# define the genetic code:
+genCode = {
+    "TTT":"F",
+    "TTC":"F",
+    "TTA":"L",
+    "UUG":"L"
+}
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+def search_fasta(pattern):
+#    eprint("Searching pattern: ", pattern)
+    m = 0
+    for chrom, seq in genome.iteritems():
+#        eprint("  ", chrom)
+        m += len(re.findall(pattern, seq))
+    return m
+
+
+Entrez.email = "rene.dreos@unil.ch"
+
+refSeqId = str(args.id[0])
+print('Working on',refSeqId)
+#refSeqId = "NM_005334"
+
+# High conservation region, inferred with blastp
+highConsStart,highConsEnd = args.region.split(":")
+print('High conservation range:',highConsStart,highConsEnd)
+
+# get the mutations
+mutantStart = []
+if args.mut:
+    mutantStart = map(int, args.mut.split(","))
+    print('Mutations position:',mutantStart)
+
+# read the genome sequence
+eprint("Reading genome...")
+file_path = "/home/rdreos/Projects/annotation/human/Homo_sapiens.GRCh38.89.dna.primary_assembly.fa"
+genome = {}
+for record in SeqIO.parse(open(file_path, "rU"), "fasta"):
+    chrom = record.id
+    sequence = str(record.seq)
+    genome[chrom] = sequence
+eprint("Done")
+
+# specify which entry to download
+handle = Entrez.efetch(db="nucleotide", id=refSeqId, rettype="gb", retmode="text")
+record = SeqIO.read(handle, "genbank")
+
+exonStart = []
+
+for I in record.features:
+    if (I.type == 'CDS'):
+        cdsSeq = record.seq[I.location.start:I.location.end]
+    if (I.type == 'exon'):
+        exonStart.append(I.location.start)
+        #print ("%i %i" % (I.location.start, I.location.end))
+
+oldStart = 0;
+for m in re.finditer('GG', str(cdsSeq)): # find the seed
+    toPrint = 0
+    newStart = m.start()
+    diff = newStart - oldStart
+    oldStart = newStart
+    if (diff > 20):
+        beginning = newStart-20
+        end = newStart+2
+        guideSeq = str(cdsSeq[beginning:end])
+        eprint('Found guide: ', guideSeq)
+        guideSeqRC = str(cdsSeq[beginning:end].reverse_complement())
+        eprint('  Searching for matches in the genome')
+        mGenome = search_fasta(guideSeq) # find genome matches
+        mrGenome = search_fasta(guideSeqRC)
+        totMatches = mGenome + mrGenome
+        eprint('    found', mGenome, 'matches in the forward strand')
+        eprint('    found', mrGenome, 'matches in the reverse strand')
+        cMatch = len(re.findall('C', str(cdsSeq[beginning:beginning+4])))
+        eprint('  Checking if it span introns')
+        for k in exonStart:
+            if beginning < k: # if it spans an intron
+                if end > k:
+                    toPrint = -1000
+                    eprint('    YES!')
+        eprint('  Checking if it span known mutations')
+        for i in mutantStart:
+            if beginning < i: # if it is whithin the known mutations
+                if end > i+3:
+                    toPrint += 1
+                    eprint('    YES!')
+            if abs(beginning-i) < 100: # if it is near the mutations
+                toPrint += 1
+                eprint('    It is near a mutation')
+        eprint('  Checking if it match a region of high conservation')
+        if beginning > highConsStart:
+            if end < highConsEnd:
+                toPrint += 1
+                eprint('    YES!')
+            else:
+                toPrint -= 1
+                eprint('    NO!')
+        else:
+            toPrint -= 1
+            eprint('    NO!')
+        eprint('  Checking if it has Cs in the active region')
+        if cMatch >= 1: # if there are C in the most active region (-20:-16)
+            toPrint += 1
+            eprint('    YES!')
+        else:
+            toPrint -= 1
+            eprint('    NO!')
+        if totMatches == 1:
+            print ("%s %i %i" % (guideSeq, newStart, toPrint))
