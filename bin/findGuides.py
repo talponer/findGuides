@@ -9,6 +9,7 @@ from Bio import Entrez
 parser = argparse.ArgumentParser(description='Given a RsfSeq Nucleotide ID, return all possible guides for the Cas9 protein. STDOUT gives the list of sequences, position in the CDS and a score; STDERR gives a log of the analysis done on each sequence.')
 parser.add_argument('-r','--region', help='Transcript region with high residues conservation. Default: entire transcript', type=str, default='1:999999999')
 parser.add_argument('-m','--mut', help='Position of known mutations separated by a comma. Example: \'P134S,Y103H,Q68E\'', type=str)
+parser.add_argument('-g','--genome', help='Single FASTA file containing the genome sequence. It is used to check for guide multiple matches', type=str, default='/home/rdreos/Projects/annotation/human/Homo_sapiens.GRCh38.89.dna.primary_assembly.fa')
 parser.add_argument('-i','--id', help='RefSeq Nucleotide ID. Example: \'NM_005334\'', nargs=1, type=str, required=True)
 args = parser.parse_args()
 
@@ -83,6 +84,15 @@ genCode = {
     "GGG":"G" 
 }
 
+def FileCheck(fn):
+    try:
+        open(fn, "r")
+        return 1
+    except IOError:
+        print("Error: Genome file does not appear to exist.", file=sys.stderr)
+        sys.exit()
+        return 0
+
 def eprint(*args, **end):
     if end:
         print(*args, file=sys.stderr, end=end)
@@ -138,8 +148,12 @@ else:
     mutations = ['A1000000000A']
     
 # read the genome sequence
+if args.genome:
+    file_path = args.genome
+
+FileCheck(file_path)
+
 print("## Reading genome...", file=sys.stderr, end='')
-file_path = "/home/rdreos/Projects/annotation/human/Homo_sapiens.GRCh38.89.dna.primary_assembly.fa"
 genome = {}
 for record in SeqIO.parse(open(file_path, "rU"), "fasta"):
     chrom = record.id
