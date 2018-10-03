@@ -6,11 +6,31 @@ from Bio import SeqIO
 from Bio import Entrez
 
 # parse the command line arguments:
-parser = argparse.ArgumentParser(description='Given a RsfSeq Nucleotide ID, return all possible guides for the Cas9 protein. STDOUT gives the list of sequences, position in the CDS and a score; STDERR gives a log of the analysis done on each sequence.')
-parser.add_argument('-r','--region', help='Transcript region with high residues conservation. Default: entire transcript', type=str, default='1:999999999')
-parser.add_argument('-m','--mut', help='Position of known mutations separated by a comma. Example: \'P134S,Y103H,Q68E\'', type=str)
-parser.add_argument('-g','--genome', help='Single FASTA file containing the genome sequence. It is used to check for guide multiple matches', type=str, default='/home/rdreos/Projects/annotation/human/Homo_sapiens.GRCh38.89.dna.primary_assembly.fa')
-parser.add_argument('-i','--id', help='RefSeq Nucleotide ID. Example: \'NM_005334\'', nargs=1, type=str, required=True)
+parser = argparse.ArgumentParser(description='Given a RsfSeq Nucleotide ID, '
+                                 'return all possible guides for the Cas9 '
+                                 'protein. STDOUT gives the list of sequences, '
+                                 'position in the CDS and a score; STDERR '
+                                 'gives a log of the analysis done on each '
+                                 'sequence.')
+parser.add_argument('-r','--region',
+                    help='Transcript region (nucleotides) with high '
+                    'conservation. Example: 1:1000. Default: entire transcript',
+                    type=str)
+parser.add_argument('-m','--mut',
+                    help='Position of known mutations separated by a comma. '
+                    'Example: \'P134S,Y103H,Q68E\'',
+                    type=str)
+parser.add_argument('-g','--genome',
+                    help='Single FASTA file containing the genome sequence. '
+                    'It is used to check for guide multiple matches',
+                    type=str,
+                    default='/home/rdreos/Projects/annotation/human/'
+                    'Homo_sapiens.GRCh38.89.dna.primary_assembly.fa')
+parser.add_argument('-i','--id',
+                    help='RefSeq Nucleotide ID. Example: \'NM_005334\'',
+                    nargs=1,
+                    type=str,
+                    required=True)
 args = parser.parse_args()
 
 #if args.id:
@@ -132,9 +152,6 @@ refSeqId = str(args.id[0])
 eprint('## ID:',refSeqId)
 #refSeqId = "NM_005334"
 
-# High conservation region, inferred with blastp
-highConsStart,highConsEnd = args.region.split(":")
-eprint('## Range:',highConsStart,highConsEnd)
 
 # get the mutations
 mutantStart = []
@@ -182,6 +199,14 @@ print("Done", file=sys.stderr)
 
 cdslength = cdsEnd - cdsStart
 print("## CDS lenght (bp):", cdslength, file=sys.stderr)
+
+# High conservation region, inferred with blastp
+if args.region:
+    highConsStart,highConsEnd = args.region.split(":")
+else:
+    highConsStart = 1
+    highConsEnd = cdslength
+eprint('## Range:',highConsStart,highConsEnd)
 
 oldStart = 0;
 for m in re.finditer('GG', str(cdsSeq)): # find the seed
