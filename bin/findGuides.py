@@ -26,6 +26,10 @@ parser.add_argument('-g','--genome',
                     type=str,
                     default='/home/rdreos/Projects/annotation/human/'
                     'Homo_sapiens.GRCh38.89.dna.primary_assembly.fa')
+parser.add_argument('-t','--tableLog',
+                    help='Write log in tabular format. '
+                    'Useful for downstream guides\' analysis and selection',
+                    action="store_true")
 parser.add_argument('-i','--id',
                     help='RefSeq Nucleotide ID. Example: \'NM_005334\'',
                     nargs=1,
@@ -152,6 +156,8 @@ refSeqId = str(args.id[0])
 eprint('## ID:',refSeqId)
 #refSeqId = "NM_005334"
 
+#
+#eprint('## logs:', args.tableLog)
 
 # get the mutations
 mutantStart = []
@@ -208,6 +214,11 @@ else:
     highConsEnd = cdslength
 eprint('## Range:',highConsStart,highConsEnd)
 
+# print table header if requested
+if args.tableLog:
+    print('', file=sys.stderr)
+    print('Seaquence','Strand','From','To','FOR-hit','REV-hit','Substitutions','Introns','NearMut','HighCons','ActiveC','Score','Print', sep="\t", file=sys.stderr)
+
 oldStart = 0;
 for m in re.finditer('GG', str(cdsSeq)): # find the seed
     toPrint = 0
@@ -217,22 +228,31 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
         beginning = newStart-20
         end = newStart+2
         guideSeq = str(cdsSeq[beginning:end])
-        print('', file=sys.stderr)
-        print('Sequence:         ', guideSeq, file=sys.stderr)
-        print('Transcript strand: Forward', file=sys.stderr)
-        print('Position in CDS:  ', str(beginning)+'..'+str(end), file=sys.stderr)
+        if args.tableLog:
+            rend="\t"
+            print(guideSeq,"+",str(beginning),str(end), sep="\t", end=rend, file=sys.stderr)
+        else:
+            rend="\n"
+            print('', file=sys.stderr)
+            print('Sequence:         ', guideSeq, file=sys.stderr)
+            print('Transcript strand: Forward', file=sys.stderr)
+            print('Position in CDS:  ', str(beginning)+'..'+str(end), file=sys.stderr)
         guideSeqRC = str(cdsSeq[beginning:end].reverse_complement())
         mGenome = search_fasta(guideSeq) # find genome matches
         mrGenome = search_fasta(guideSeqRC)
         #mGenome = 1
         #mrGenome = 0
         totMatches = mGenome + mrGenome
-        print('Genome match FOR: ', mGenome, file=sys.stderr)
-        print('Genome match REV: ', mrGenome, file=sys.stderr)
+        if args.tableLog:
+            print(mGenome,mrGenome, sep="\t", end="\t", file=sys.stderr)
+        else:
+            print('Genome match FOR: ', mGenome, file=sys.stderr)
+            print('Genome match REV: ', mrGenome, file=sys.stderr)
         cMatch = len(re.findall('C', str(cdsSeq[beginning:beginning+5])))
 
         # Get the residues in the 5 last bases
-        print('Possible substit: ', file=sys.stderr, end=' ')
+        if not args.tableLog:
+            print('Possible substit: ', file=sys.stderr, end=' ')
         newBeg = beginning
         printMut = []
         okMut = 0
@@ -269,8 +289,11 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
                     print('*', file=sys.stderr, end='')
             print(m1, file=sys.stderr, end=' ')
         
-        print('', file=sys.stderr)
-        print('Introns:          ', file=sys.stderr, end=' ')
+        if args.tableLog:
+            print('', end="\t", file=sys.stderr)
+        else:
+            print('', file=sys.stderr)
+            print('Introns:          ', file=sys.stderr, end=' ')
         inIntr = 0
         for k in exonStart:
             k -= cdsStart
@@ -278,17 +301,19 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
                 if end > k:
                     toPrint = -1000
                     inIntr = 1
-        print(inIntr, file=sys.stderr)
+        print(inIntr, file=sys.stderr, end=rend)
                     
-        print('Near known mut:   ', file=sys.stderr, end=' ')
+        if not args.tableLog:
+            print('Near known mut:   ', file=sys.stderr, end=' ')
         nearMut = 0
         for i in mutantStart:
             if abs(beginning-i) < 100: # if it is near the mutations
                 toPrint += 1
                 nearMut = 1
-        print(nearMut, file=sys.stderr)
-               
-        print('High cons:        ', file=sys.stderr, end=' ')
+        print(nearMut, file=sys.stderr, end=rend)
+
+        if not args.tableLog:
+            print('High cons:        ', file=sys.stderr, end=' ')
         inCons = 0
         if beginning > int(highConsStart):
             if end < int(highConsEnd):
@@ -298,29 +323,36 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
                 toPrint -= 1
         else:
             toPrint -= 1
-        print(inCons, file=sys.stderr)
-            
-        print('Active Cs:        ', file=sys.stderr, end=' ')
+        print(inCons, file=sys.stderr, end=rend)
+
+        if not args.tableLog:
+            print('Active Cs:        ', file=sys.stderr, end=' ')
         if cMatch >= 1: # if there are C in the most active region (-20:-16)
             toPrint += 1
-            print('1', file=sys.stderr)
+            print('1', file=sys.stderr, end=rend)
         else:
             toPrint -= 10
-            print('0', file=sys.stderr)
-            
-        print('Score:            ', toPrint, file=sys.stderr)
+            print('0', file=sys.stderr, end=rend)
+
+        if args.tableLog:
+            print(toPrint, file=sys.stderr, end=rend)
+        else:
+            print('Score:            ', toPrint, file=sys.stderr)
+
+        if not args.tableLog:
+            print('Printed:          ', file=sys.stderr, end=' ')        
         if totMatches == 1:
             if okMut == 1:
                 if inIntr == 0:
-                    print ("%s %i %i" % (guideSeq, newStart, toPrint))
-                    print('Printed:           1', file=sys.stderr)
+                    print(guideSeq, str(beginning), str(end), toPrint, sep="\t")
+                    print('1', file=sys.stderr)
                     oldStart = end
                 else:
-                    print('Printed:           0', file=sys.stderr)
+                    print('0', file=sys.stderr)
             else:
-                print('Printed:           0', file=sys.stderr)
+                print('0', file=sys.stderr)
         else:
-            print('Printed:           0', file=sys.stderr)
+            print('0', file=sys.stderr)
             
 # going through the reverse strand
 oldStart = 0
@@ -340,21 +372,28 @@ for index, newStart in enumerate(revMatch): # find the seed
         beginning = newStart
         guideSeq = str(cdsSeq[beginning:end])
         guideSeqRC = str(cdsSeq[beginning:end].reverse_complement())
-        print('', file=sys.stderr)
-        print('Sequence:         ', guideSeqRC, file=sys.stderr)
-        print('Transcript strand: Reverse', file=sys.stderr)
-        print('Position in CDS:  ', str(end)+'..'+str(beginning), file=sys.stderr)
+        if args.tableLog:
+            print(guideSeqRC,"-",str(end),str(beginning), sep="\t", end=rend, file=sys.stderr)
+        else:
+            print('', file=sys.stderr)
+            print('Sequence:         ', guideSeqRC, file=sys.stderr)
+            print('Transcript strand: REV', file=sys.stderr)
+            print('Position in CDS:  ', str(end)+'..'+str(beginning), file=sys.stderr)
         mGenome = search_fasta(guideSeq) # find genome matches
         mrGenome = search_fasta(guideSeqRC)
         #mGenome = 1
         #mrGenome = 0
         totMatches = mGenome + mrGenome
-        print('Genome match FOR: ', mGenome, file=sys.stderr)
-        print('Genome match REV: ', mrGenome, file=sys.stderr)
+        if args.tableLog:
+            print(mGenomen, mrGenome, sep="\t", end=rend, file=sys.stderr)
+        else:
+            print('Genome match FOR: ', mGenome, file=sys.stderr)
+            print('Genome match REV: ', mrGenome, file=sys.stderr)
         cMatch = len(re.findall('C', str(cdsSeq[beginning:beginning+5])))
 
         # Get the residues in the 5 last bases
-        print('Possible substit: ', file=sys.stderr, end=' ')
+        if not args.tableLog:
+            print('Possible substit: ', file=sys.stderr, end=' ')
         newBeg = end-6
         printMut = []
         okMut = 0
@@ -379,7 +418,7 @@ for index, newStart in enumerate(revMatch): # find the seed
                     okMut = 1
                     printMut.append(m2)
                 else:
-                    print('['+m2+']', file=sys.stderr, end=' ')
+                    print('['+m2+']', file=sys.stderr, end=rend)
             newBeg = newBeg+3
             if newBeg >= end:
                 break
@@ -389,10 +428,11 @@ for index, newStart in enumerate(revMatch): # find the seed
                 if m1 == m2:
                     toPrint += 10
                     print('*', file=sys.stderr, end='')
-            print(m1, file=sys.stderr, end=' ')
-        print('', file=sys.stderr)
-        
-        print('Introns:          ', file=sys.stderr, end=' ')
+            print(m1, file=sys.stderr, end=rend)
+
+        if not args.tableLog:
+            print('', file=sys.stderr)
+            print('Introns:          ', file=sys.stderr, end=' ')
         intr = 0
         for k in exonStart:
             k -= cdsStart
@@ -401,17 +441,19 @@ for index, newStart in enumerate(revMatch): # find the seed
                     toPrint = -1000
                     intr = 1
 
-        print(intr, file=sys.stderr)
-        
-        print('Near known mut:   ', file=sys.stderr, end=' ')
+        print(intr, file=sys.stderr, end=rend)
+
+        if not args.tableLog:
+            print('Near known mut:   ', file=sys.stderr, end=' ')
         nearMut = 0
         for i in mutantStart:
             if abs(beginning-i) < 100: # if it is near the mutations
                 toPrint += 1
                 nearMut = 1
-        print(nearMut, file=sys.stderr)
+        print(nearMut, file=sys.stderr, end=rend)
                 
-        print('High cons:        ', file=sys.stderr, end=' ')
+        if not args.tableLog:
+            print('High cons:        ', file=sys.stderr, end=' ')
         inHigh = 0
         if beginning > int(highConsStart):
             #eprint('first')
@@ -422,26 +464,31 @@ for index, newStart in enumerate(revMatch): # find the seed
                 toPrint -= 1
         else:
             toPrint -= 1
-        print(inHigh, file=sys.stderr)
+        print(inHigh, file=sys.stderr, end=rend)
 
-        print('Active Cs:        ', file=sys.stderr, end=' ')
+        if not args.tableLog:
+            print('Active Cs:        ', file=sys.stderr, end=' ')
         if cMatch >= 1: # if there are C in the most active region (-20:-16)
             toPrint += 1
-            print('1', file=sys.stderr)
+            print('1', file=sys.stderr, end=rend)
         else:
             toPrint -= 10
-            print('0', file=sys.stderr)
+            print('0', file=sys.stderr, end=rend)
 
-        print('Score:            ', toPrint, file=sys.stderr)
+        if args.tableLog:
+            print(toPrint, file=sys.stderr, end=rend)
+        else:
+            print('Score:            ', toPrint, file=sys.stderr)
+            print('Printed:          ', file=sys.stderr, end=rend)
         if totMatches == 1:
             if okMut == 1:
                 if intr == 0:
-                    print ("%s* %i %i" % (guideSeqRC, newStart, toPrint))
-                    print('Printed:           1', file=sys.stderr)
+                    print(guideSeqRC, str(end), str(beginning), toPrint, sep="\t")
+                    print('1', file=sys.stderr)
                     oldStart = end
                 else:
-                    print('Printed:           0', file=sys.stderr)
+                    print('0', file=sys.stderr)
             else:
-                print('Printed:           0', file=sys.stderr)
+                print('0', file=sys.stderr)
         else:
-            print('Printed:           0', file=sys.stderr)
+            print('0', file=sys.stderr)
