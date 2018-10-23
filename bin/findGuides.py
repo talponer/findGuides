@@ -385,7 +385,7 @@ for index, newStart in enumerate(revMatch): # find the seed
         #mrGenome = 0
         totMatches = mGenome + mrGenome
         if args.tableLog:
-            print(mGenomen, mrGenome, sep="\t", end=rend, file=sys.stderr)
+            print(mGenome, mrGenome, sep="\t", end=rend, file=sys.stderr)
         else:
             print('Genome match FOR: ', mGenome, file=sys.stderr)
             print('Genome match REV: ', mrGenome, file=sys.stderr)
