@@ -418,7 +418,7 @@ for index, newStart in enumerate(revMatch): # find the seed
                     okMut = 1
                     printMut.append(m2)
                 else:
-                    print('['+m2+']', file=sys.stderr, end=rend)
+                    print('['+m2+']', file=sys.stderr, end=' ')
             newBeg = newBeg+3
             if newBeg >= end:
                 break
@@ -428,9 +428,11 @@ for index, newStart in enumerate(revMatch): # find the seed
                 if m1 == m2:
                     toPrint += 10
                     print('*', file=sys.stderr, end='')
-            print(m1, file=sys.stderr, end=rend)
+            print(m1, file=sys.stderr, end=' ')
 
-        if not args.tableLog:
+        if args.tableLog:
+            print('', end="\t", file=sys.stderr)
+        else:
             print('', file=sys.stderr)
             print('Introns:          ', file=sys.stderr, end=' ')
         intr = 0

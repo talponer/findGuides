@@ -12,5 +12,5 @@ for NAME in $(cut -f1 targetGenes.txt); do
     fi
     LOGFILE=$NAME\_putativeGuides.log
     OUTFILE=$NAME\_putativeGuides.txt
-    python ./bin/findGuides.py $MUTATION -r $REG -i $ID 2> $LOGFILE | sort -k3,3nr -k2,2n > $OUTFILE
+    python ./bin/findGuides.py -t $MUTATION -r $REG -i $ID 2> $LOGFILE | sort -k3,3nr -k2,2n > $OUTFILE
 done
