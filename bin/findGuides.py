@@ -1,9 +1,19 @@
+#!/home/rdreos/miniconda2/bin/python
+
 from __future__ import print_function
 import sys
 import re
 import argparse
 from Bio import SeqIO
 from Bio import Entrez
+
+######################################################################
+### There is still one major issue to solve: if a giode has a CC in
+### the active site, those CC are the seeding pont for a guide on the
+### reverse strand.  These two guides would heavily interfere with
+### each other (they woulg target the seeding bases of each other). It
+### all depend if the guides are used independently or as a mixture
+######################################################################
 
 # parse the command line arguments:
 parser = argparse.ArgumentParser(description='Given a RsfSeq Nucleotide ID, '
@@ -29,6 +39,9 @@ parser.add_argument('-g','--genome',
 parser.add_argument('-t','--tableLog',
                     help='Write log in tabular format. '
                     'Useful for downstream guides\' analysis and selection',
+                    action="store_true")
+parser.add_argument('-a','--allGuides',
+                    help='Consider all guides, even if overlapping',
                     action="store_true")
 parser.add_argument('-i','--id',
                     help='RefSeq Nucleotide ID. Example: \'NM_005334\'',
@@ -214,17 +227,36 @@ else:
     highConsEnd = cdslength
 eprint('## Range:',highConsStart,highConsEnd)
 
+# Check which guides to print
+if args.allGuides:
+    print('## Output: all guides', file=sys.stderr)
+else:
+    print('## Output: non-overlapping guides (first one)', file=sys.stderr)
+
 # print table header if requested
 if args.tableLog:
     print('', file=sys.stderr)
     print('Seaquence','Strand','From','To','FOR-hit','REV-hit','Substitutions','Introns','NearMut','HighCons','ActiveC','Score','Print', sep="\t", file=sys.stderr)
 
+######################################################################
+### Start with the forward strand
+######################################################################
 oldStart = 0;
+printed = 0
+overlap = 0
+lastStart = 0
 for m in re.finditer('GG', str(cdsSeq)): # find the seed
-    toPrint = 0
     newStart = m.start()
     diff = newStart - oldStart
+
+    if args.allGuides:
+        diff = newStart
+    
+    # take only guides if they do not overlap, or check if first hit
+    # is far enough
     if (diff > 20):
+
+        toPrint = 0    
         beginning = newStart-20
         end = newStart+2
         guideSeq = str(cdsSeq[beginning:end])
@@ -345,17 +377,23 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
             if okMut == 1:
                 if inIntr == 0:
                     print(guideSeq, str(beginning), str(end), toPrint, sep="\t")
+                    #print(guideSeq, str(beginning), str(end), sep="\t", end="\t")
                     print('1', file=sys.stderr)
                     oldStart = end
+                    printed = 1
                 else:
                     print('0', file=sys.stderr)
             else:
                 print('0', file=sys.stderr)
         else:
             print('0', file=sys.stderr)
-            
-# going through the reverse strand
+
+######################################################################
+### going through the reverse strand
+######################################################################
+printed = 0
 oldStart = 0
+overlap = 0
 revMatch = []
 for m in re.finditer('CC', str(cdsSeq)): # find the seed
     revMatch.append(m.start())
@@ -367,7 +405,15 @@ for index, newStart in enumerate(revMatch): # find the seed
     else:
         nextStart = len(str(cdsSeq))
     diff = nextStart - newStart
-    if (diff > 20):
+
+    if args.allGuides:
+        diff = nextStart
+    
+    # take only guides if they do not overlap, or check if first hit
+    # is far enough
+    if (diff > 20 and newStart+22 < cdslength):
+
+        toPrint = 0    
         end = newStart+22
         beginning = newStart
         guideSeq = str(cdsSeq[beginning:end])
@@ -486,8 +532,10 @@ for index, newStart in enumerate(revMatch): # find the seed
             if okMut == 1:
                 if intr == 0:
                     print(guideSeqRC, str(end), str(beginning), toPrint, sep="\t")
+                    #print(guideSeqRC, str(end), str(beginning), sep="\t", end="\t")
                     print('1', file=sys.stderr)
                     oldStart = end
+                    printed = 1
                 else:
                     print('0', file=sys.stderr)
             else:
