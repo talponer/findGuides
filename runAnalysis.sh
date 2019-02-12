@@ -1,7 +1,7 @@
 #!/bin/bash
 
-## for NAME in $(cut -f1 targetGenes.txt); do
-for NAME in HARS TAF1; do
+for NAME in $(cut -f1 targetGenes.txt | head -7); do
+##for NAME in HARS TAF1; do
     echo $NAME
     ID=$(grep "^$NAME" targetGenes.txt | cut -f2)
     MUT=$(grep "^$NAME" targetGenes.txt | cut -f3)
@@ -13,6 +13,9 @@ for NAME in HARS TAF1; do
     fi
     LOGFILE=$NAME\_putativeGuides.log
     OUTFILE=$NAME\_putativeGuides.txt
-    python ./bin/findGuides.py -a -t $MUTATION -r $REG -i $ID 2> $LOGFILE | sort -k3,3nr -k2,2n > $OUTFILE &
-    sleep 1m
+    python ./bin/findGuides.py -a -t $MUTATION -r $REG -i $ID 2> $LOGFILE | sort -k3,3nr -k2,2n > $OUTFILE
+    #sleep 1m
 done
+
+# get a negative control sequence
+#python ./bin/findGuides.py -a -i AC010327 2> AAVS1_control.log | sort -k3,3nr -k2,2n > AAVS1_control.txt

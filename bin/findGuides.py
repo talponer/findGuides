@@ -8,7 +8,7 @@ from Bio import SeqIO
 from Bio import Entrez
 
 ######################################################################
-### There is still one major issue to solve: if a giode has a CC in
+### There is still one major issue to solve: if a guide has a CC in
 ### the active site, those CC are the seeding pont for a guide on the
 ### reverse strand.  These two guides would heavily interfere with
 ### each other (they woulg target the seeding bases of each other). It
@@ -41,7 +41,7 @@ parser.add_argument('-t','--tableLog',
                     'Useful for downstream guides\' analysis and selection',
                     action="store_true")
 parser.add_argument('-a','--allGuides',
-                    help='Consider all guides, even if overlapping',
+                    help='Output all positive guides, even if overlapping',
                     action="store_true")
 parser.add_argument('-i','--id',
                     help='RefSeq Nucleotide ID. Example: \'NM_005334\'',
@@ -282,6 +282,9 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
             print('Genome match REV: ', mrGenome, file=sys.stderr)
         cMatch = len(re.findall('C', str(cdsSeq[beginning:beginning+5])))
 
+        if not args.tableLog:
+            print('Matching sequence: ', str(cdsSeq[beginning:beginning+5]), file=sys.stderr)
+
         # Get the residues in the 5 last bases
         if not args.tableLog:
             print('Possible substit: ', file=sys.stderr, end=' ')
@@ -290,16 +293,19 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
         okMut = 0
         while True:
             modBed = newBeg % 3
-            aapos = (newBeg+2)/3
-            if modBed == 0:
-                frame = 0
-            elif modBed < 0.5:
-                frame = 2
-            else:
-                frame = 1
+            aapos = int(newBeg/3) + 1
+            frame = modBed
+            # if modBed == 0:
+            #     frame = 0
+            # elif modBed < 0.5 :
+            #     frame = 2
+            # else:
+            #     frame = 1
             triplet = str(cdsSeq[newBeg-frame:newBeg-frame+3])
             tripletM = permuteBase(triplet,'C','T')
             amino = genCode[triplet]
+            if not args.tableLog:
+                print('CDS pos:', newBeg, ' Mode: ', modBed, ' Frame: ', frame, 'AA:', aapos, ' Triplet: ', triplet, ' Mutated: ', tripletM, file=sys.stderr)
             for mut in tripletM:
                 aminoM = genCode[mut]
                 m2 = amino + str(aapos) + aminoM
@@ -308,7 +314,8 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
                     printMut.append(m2)
                     okMut = 1
                 else:
-                    print('['+m2+']', file=sys.stderr, end=' ')
+                    if args.tableLog:
+                        print('['+m2+']', file=sys.stderr, end=' ')
                     #toPrint -= 1
             newBeg = newBeg+3
             if newBeg > beginning+6:
@@ -409,11 +416,11 @@ for index, newStart in enumerate(revMatch): # find the seed
     if args.allGuides:
         diff = nextStart
     
-    # take only guides if they do not overlap, or check if first hit
+    # take only guides if they do not overlap, or check if last hit
     # is far enough
     if (diff > 20 and newStart+22 < cdslength):
 
-        toPrint = 0    
+        toPrint = 0
         end = newStart+22
         beginning = newStart
         guideSeq = str(cdsSeq[beginning:end])
@@ -435,7 +442,11 @@ for index, newStart in enumerate(revMatch): # find the seed
         else:
             print('Genome match FOR: ', mGenome, file=sys.stderr)
             print('Genome match REV: ', mrGenome, file=sys.stderr)
-        cMatch = len(re.findall('C', str(cdsSeq[beginning:beginning+5])))
+        cMatch = len(re.findall('G', str(cdsSeq[(end-5):end])))
+
+        if not args.tableLog:
+            print('Matching sequence: ', str(cdsSeq[(end-5):end]), file=sys.stderr)
+        
 
         # Get the residues in the 5 last bases
         if not args.tableLog:
@@ -445,16 +456,19 @@ for index, newStart in enumerate(revMatch): # find the seed
         okMut = 0
         while True:
             modBed = newBeg % 3
-            aapos = (newBeg+2)/3
-            if modBed == 0:
-                frame = 0
-            elif modBed < 0.5:
-                frame = 2
-            else:
-                frame = 1
+            aapos = int(newBeg/3) + 1
+            frame = modBed
+            # if modBed == 0:
+            #     frame = 0
+            # elif modBed < 0.5:
+            #     frame = 2
+            # else:
+            #     frame = 1
             triplet = str(cdsSeq[newBeg-frame:newBeg-frame+3])
             tripletM = permuteBase(triplet,'G','A')
             amino = genCode[triplet]
+            if not args.tableLog:
+                print('CDS pos:', newBeg, ' Mode: ', modBed, ' Frame: ', frame, 'AA:', aapos, ' Triplet: ', triplet, ' Mutated: ', tripletM, file=sys.stderr)
             for mut in tripletM:
                 aminoM = genCode[mut]
                 m2 = amino + str(aapos) + aminoM
@@ -464,7 +478,8 @@ for index, newStart in enumerate(revMatch): # find the seed
                     okMut = 1
                     printMut.append(m2)
                 else:
-                    print('['+m2+']', file=sys.stderr, end=' ')
+                    if args.tableLog:
+                        print('['+m2+']', file=sys.stderr, end=' ')
             newBeg = newBeg+3
             if newBeg >= end:
                 break
@@ -527,7 +542,7 @@ for index, newStart in enumerate(revMatch): # find the seed
             print(toPrint, file=sys.stderr, end=rend)
         else:
             print('Score:            ', toPrint, file=sys.stderr)
-            print('Printed:          ', file=sys.stderr, end=rend)
+            print('Printed:          ', file=sys.stderr, end=' ')
         if totMatches == 1:
             if okMut == 1:
                 if intr == 0:
