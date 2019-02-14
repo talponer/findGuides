@@ -481,7 +481,7 @@ for index, newStart in enumerate(revMatch): # find the seed
                     if args.tableLog:
                         print('['+m2+']', file=sys.stderr, end=' ')
             newBeg = newBeg+3
-            if newBeg >= end:
+            if (newBeg-frame) >= end:
                 break
             
         for m1 in list(set(printMut)):

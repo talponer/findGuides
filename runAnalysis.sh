@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for NAME in $(cut -f1 targetGenes.txt | head -7); do
+for NAME in $(cut -f1 targetGenes.txt); do
 ##for NAME in HARS TAF1; do
     echo $NAME
     ID=$(grep "^$NAME" targetGenes.txt | cut -f2)
