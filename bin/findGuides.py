@@ -334,14 +334,20 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
             print('', file=sys.stderr)
             print('Introns:          ', file=sys.stderr, end=' ')
         inIntr = 0
+        intPos = 0
         for k in exonStart:
             k -= cdsStart
             if beginning < k: # if it spans an intron
                 if end > k:
                     toPrint = -1000
                     inIntr = 1
-        print(inIntr, file=sys.stderr, end=rend)
-                    
+                    intPos = k
+                    break
+        if args.tableLog:
+            print(inIntr, file=sys.stderr, end=rend)
+        else:
+            print(inIntr, " - ", intPos, file=sys.stderr, end=rend)
+            
         if not args.tableLog:
             print('Near known mut:   ', file=sys.stderr, end=' ')
         nearMut = 0
