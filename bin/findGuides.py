@@ -1,11 +1,13 @@
-#!/home/rdreos/miniconda2/bin/python
+#!/usr/bin/python3
 
 from __future__ import print_function
 import sys
 import re
 import argparse
 from Bio import SeqIO
+from Bio.Seq import Seq
 from Bio import Entrez
+import mysql.connector
 
 ######################################################################
 ### There is still one major issue to solve: if a guide has a CC in
@@ -16,7 +18,8 @@ from Bio import Entrez
 ######################################################################
 
 # parse the command line arguments:
-parser = argparse.ArgumentParser(description='Given a RsfSeq Nucleotide ID, '
+parser = argparse.ArgumentParser(description='Given a RsfSeq Nucleotide ID or '
+                                 'a FASTA sequence, '
                                  'return all possible guides for the Cas9 '
                                  'protein. STDOUT gives the list of sequences, '
                                  'position in the CDS and a score; STDERR '
@@ -32,6 +35,8 @@ parser.add_argument('-m','--mut',
                     type=str)
 parser.add_argument('-g','--genome',
                     help='Single FASTA file containing the genome sequence. '
+                    'It must follow UCSC Genome Browser chromosome nomenclature:'
+                    ' chr1, chr2, chrX, etc... '
                     'It is used to check for guide multiple matches',
                     type=str,
                     default='/home/rdreos/Projects/annotation/human/'
@@ -42,6 +47,11 @@ parser.add_argument('-t','--tableLog',
                     action="store_true")
 parser.add_argument('-a','--allGuides',
                     help='Output all positive guides, even if overlapping',
+                    action="store_true")
+parser.add_argument('-c','--controls',
+                    help='Find guides only in introns. '
+                    'Use this option to find negative controls (i.e. guides '
+                    'that should not have an inpact on protein coding region).',
                     action="store_true")
 parser.add_argument('-i','--id',
                     help='RefSeq Nucleotide ID. Example: \'NM_005334\'',
@@ -126,7 +136,7 @@ def FileCheck(fn):
         open(fn, "r")
         return 1
     except IOError:
-        print("Error: Genome file does not appear to exist.", file=sys.stderr)
+        print("Error: file ", fn, " does not appear to exist.", file=sys.stderr)
         sys.exit()
         return 0
 
@@ -136,10 +146,10 @@ def eprint(*args, **end):
     else:
         print(*args, file=sys.stderr)
 
-def search_fasta(pattern):
+def search_fasta(pattern, fasta):
 #    eprint("Searching pattern: ", pattern)
     m = 0
-    for chrom, seq in genome.iteritems():
+    for chrom, seq in fasta.items():
 #        eprint("  ", chrom)
         m += len(re.findall(pattern, seq))
     return m
@@ -162,6 +172,87 @@ def permuteBase(triplet, F, T):
                     tripletM.append(t3)
     return list(set(tripletM))
 
+
+def getIntronGuides(gid, gassembly, gSeq):
+    print("## Fetching introns coordinates from UCSC...", file=sys.stderr, end='')
+    mydb = mysql.connector.connect(
+        host="genome-mysql.cse.ucsc.edu",
+        user="genome",
+        database=gassembly
+    )
+    mycursor = mydb.cursor()
+    query = "SELECT chrom,strand,exonStarts,exonEnds,exonCount FROM refGene WHERE name='" + gid + "'"
+    mycursor.execute(query)
+    myresult = mycursor.fetchone()
+    print("Done", file=sys.stderr)
+    
+    chrom = myresult[0]
+    strand = myresult[1]
+    exonStarts = myresult[2]
+    exonEnds = myresult[3]
+    exonCount = int(myresult[4])
+    exonStart = exonStarts.decode().split(",")
+    exonEnd = exonEnds.decode().split(",")
+    
+    if args.tableLog:
+        print('', file=sys.stderr)
+        print('Seaquence','IntronNumber','Strand','From','To','FOR-hit','REV-hit','ActiveC','Score','Print', sep="\t", file=sys.stderr)
+
+    for intNumb in range(0, exonCount - 1):
+        diff = int(exonStart[intNumb+1]) - int(exonEnd[intNumb])
+        if diff > 300:
+            if not args.tableLog:
+                print('Intron ', intNumb, ' length: ', diff, sep='')
+            chrSeq = gSeq[chrom]
+            intronStartSearch = int(exonEnd[intNumb]) + 100
+            intronEndSearch = int(exonStart[intNumb+1]) - 100
+            chrSeqIntron = chrSeq[intronStartSearch:intronEndSearch]
+            for m in re.finditer('GG', chrSeqIntron): # find the seed
+                strand = '+'
+                newStart = m.start()
+                toPrint = 0
+                beginning = newStart-20
+                end = newStart+2
+                if beginning <= 0:
+                    continue
+                guideSeq = chrSeqIntron[beginning:end]
+                guideSeqRC = str(Seq(guideSeq).reverse_complement())
+                mGenome = search_fasta(guideSeq, gSeq) # find genome matches
+                mrGenome = search_fasta(guideSeqRC, gSeq)
+                totMatches = mGenome + mrGenome
+                toPrint = 1
+                # check if there are Cs in the active region. Plus 1
+                # if there are none
+                activeReg = str(guideSeq[0:5])
+                cMatch = len(re.findall('C', activeReg))
+                # Give higher score if there are few matches
+                toPrint += (5 - cMatch)
+                if not totMatches == 1: toPrint = 0
+                if not args.tableLog:
+                    print('Genome match FOR:  ', mGenome, file=sys.stderr)
+                    print('Genome match REV:  ', mrGenome, file=sys.stderr)
+                    print("Sequence:           ", guideSeq, sep="", file=sys.stderr)
+                    print("[Rev Complement]:   ", guideSeqRC, sep="", file=sys.stderr)
+                    print("Position in Intron: ", beginning+100, '..', end+100, sep="", file=sys.stderr)
+                    print("Active region:      ", activeReg, sep="", file=sys.stderr)
+                    print("Cs in active reg.:  ", cMatch, sep="", file=sys.stderr)
+                    print("Score:             ", toPrint, file=sys.stderr)
+                    print("Print: ", sep="", end="", file=sys.stderr)
+                else:
+                    print(guideSeq, intNumb, strand, str(beginning+100), str(end+100), mGenome, mrGenome, cMatch, toPrint, sep="\t", end="\t", file=sys.stderr)
+                if totMatches == 1:
+                    print(guideSeq, str(beginning), str(end), toPrint, sep="\t")
+                    #print(guideSeq, str(beginning), str(end), sep="\t", end="\t")
+                    print('1', file=sys.stderr)                        
+                    oldStart = end
+                    printed = 1
+                else:
+                    print('0', file=sys.stderr)
+
+
+######################################################################
+### Main starts here
+######################################################################
 
 Entrez.email = "rene.dreos@unil.ch"
 
@@ -227,6 +318,12 @@ else:
     highConsEnd = cdslength
 eprint('## Range:',highConsStart,highConsEnd)
 
+# Find guides in introns?
+if args.controls:
+    print('## Finding controls guides!', file=sys.stderr)
+    getIntronGuides(refSeqId, 'hg38', genome)
+    sys.exit()
+
 # Check which guides to print
 if args.allGuides:
     print('## Output: all guides', file=sys.stderr)
@@ -237,7 +334,7 @@ else:
 if args.tableLog:
     print('', file=sys.stderr)
     print('Seaquence','Strand','From','To','FOR-hit','REV-hit','Substitutions','Introns','NearMut','HighCons','ActiveC','Score','Print', sep="\t", file=sys.stderr)
-
+    
 ######################################################################
 ### Start with the forward strand
 ######################################################################
@@ -270,8 +367,8 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
             print('Transcript strand: Forward', file=sys.stderr)
             print('Position in CDS:  ', str(beginning)+'..'+str(end), file=sys.stderr)
         guideSeqRC = str(cdsSeq[beginning:end].reverse_complement())
-        mGenome = search_fasta(guideSeq) # find genome matches
-        mrGenome = search_fasta(guideSeqRC)
+        mGenome = search_fasta(guideSeq, genome) # find genome matches
+        mrGenome = search_fasta(guideSeqRC, genome)
         #mGenome = 1
         #mrGenome = 0
         totMatches = mGenome + mrGenome
@@ -374,10 +471,11 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
             print('Active Cs:        ', file=sys.stderr, end=' ')
         if cMatch >= 1: # if there are C in the most active region (-20:-16)
             toPrint += 1
-            print('1', file=sys.stderr, end=rend)
+            #print('1', file=sys.stderr, end=rend)
         else:
             toPrint -= 10
-            print('0', file=sys.stderr, end=rend)
+            
+        print(cMatch, file=sys.stderr, end=rend)
 
         if args.tableLog:
             print(toPrint, file=sys.stderr, end=rend)
@@ -438,8 +536,8 @@ for index, newStart in enumerate(revMatch): # find the seed
             print('Sequence:         ', guideSeqRC, file=sys.stderr)
             print('Transcript strand: REV', file=sys.stderr)
             print('Position in CDS:  ', str(end)+'..'+str(beginning), file=sys.stderr)
-        mGenome = search_fasta(guideSeq) # find genome matches
-        mrGenome = search_fasta(guideSeqRC)
+        mGenome = search_fasta(guideSeq, genome) # find genome matches
+        mrGenome = search_fasta(guideSeqRC, genome)
         #mGenome = 1
         #mrGenome = 0
         totMatches = mGenome + mrGenome
@@ -539,10 +637,11 @@ for index, newStart in enumerate(revMatch): # find the seed
             print('Active Cs:        ', file=sys.stderr, end=' ')
         if cMatch >= 1: # if there are C in the most active region (-20:-16)
             toPrint += 1
-            print('1', file=sys.stderr, end=rend)
+            #print('1', file=sys.stderr, end=rend)
         else:
             toPrint -= 10
-            print('0', file=sys.stderr, end=rend)
+            
+        print(cMatch, file=sys.stderr, end=rend)
 
         if args.tableLog:
             print(toPrint, file=sys.stderr, end=rend)

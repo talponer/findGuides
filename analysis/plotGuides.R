@@ -821,3 +821,56 @@ rect(TAF1guides.bad$From[which(TAF1guides.bad$Strand == "-")],
      col=colors[which(TAF1guides.bad$Strand == "-")])
 legend("topleft", legend=c("Syn. Subst.","Span Intron","No Cs","Mult. Hits"), col=c(2,3,4,5), pch=20)
 dev.off()
+
+
+
+######################################################################
+######################################################################
+### Plot the intron guides (controls)
+######################################################################
+######################################################################
+
+## HCFC1
+HCFC1guides.ctrl <- read.table("../HCFC1_putativeControlGuides.log", header=T, as.is=T, sep="\t")
+
+par(mfrow=c(ceiling(length(unique(HCFC1guides.ctrl$IntronNumber))/2),2))
+for (I in unique(HCFC1guides.ctrl$IntronNumber)){
+    HCFC1guides.ctrl.int <- which(HCFC1guides.ctrl$IntronNumber == I)
+    HCFC1guides.ctrl.pos <- rowMeans(HCFC1guides.ctrl[HCFC1guides.ctrl.int, 4:5])
+    HCFC1guides.ctrl.height <- HCFC1guides.ctrl[HCFC1guides.ctrl.int, 6]
+    plot(HCFC1guides.ctrl.height ~ HCFC1guides.ctrl.pos, type="l", log="y", xlab=paste("Intron",I))
+}
+
+
+## DAD1
+DAD1guides.ctrl <- read.table("../DAD1_putativeControlGuides.log", header=T, as.is=T, sep="\t")
+
+par(mfrow=c(ceiling(length(unique(DAD1guides.ctrl$IntronNumber))/2),2))
+for (I in unique(DAD1guides.ctrl$IntronNumber)){
+    DAD1guides.ctrl.int <- which(DAD1guides.ctrl$IntronNumber == I)
+    DAD1guides.ctrl.pos <- rowMeans(DAD1guides.ctrl[DAD1guides.ctrl.int, 4:5])
+    DAD1guides.ctrl.height <- DAD1guides.ctrl[DAD1guides.ctrl.int, 6]
+    plot(DAD1guides.ctrl.height ~ DAD1guides.ctrl.pos, type="l", log="y", xlab=paste("Intron",I), ylab="Guides matches")
+}
+
+## DDX3X
+DDX3Xguides.ctrl <- read.table("../DDX3X_putativeControlGuides.log", header=T, as.is=T, sep="\t")
+
+par(mfrow=c(ceiling(length(unique(DDX3Xguides.ctrl$IntronNumber))/2),2))
+for (I in unique(DDX3Xguides.ctrl$IntronNumber)){
+    DDX3Xguides.ctrl.int <- which(DDX3Xguides.ctrl$IntronNumber == I)
+    DDX3Xguides.ctrl.pos <- rowMeans(DDX3Xguides.ctrl[DDX3Xguides.ctrl.int, 4:5])
+    DDX3Xguides.ctrl.height <- DDX3Xguides.ctrl[DDX3Xguides.ctrl.int, 6]
+    plot(DDX3Xguides.ctrl.height ~ DDX3Xguides.ctrl.pos, type="l", log="y", xlab=paste("Intron",I), ylab="Guides matches")
+}
+
+## RPS4X
+RPS4Xguides.ctrl <- read.table("../RPS4X_putativeControlGuides.log", header=T, as.is=T, sep="\t")
+
+par(mfrow=c(ceiling(length(unique(RPS4Xguides.ctrl$IntronNumber))/2),2))
+for (I in unique(RPS4Xguides.ctrl$IntronNumber)){
+    RPS4Xguides.ctrl.int <- which(RPS4Xguides.ctrl$IntronNumber == I)
+    RPS4Xguides.ctrl.pos <- rowMeans(RPS4Xguides.ctrl[RPS4Xguides.ctrl.int, 4:5])
+    RPS4Xguides.ctrl.height <- RPS4Xguides.ctrl[RPS4Xguides.ctrl.int, 6]
+    plot(RPS4Xguides.ctrl.height ~ RPS4Xguides.ctrl.pos, type="l", log="y", xlab=paste("Intron",I), ylab="Guides matches")
+}
