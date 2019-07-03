@@ -11,14 +11,14 @@ import mysql.connector
 
 ######################################################################
 ### There is still one major issue to solve: if a guide has a CC in
-### the active site, those CC are the seeding pont for a guide on the
-### reverse strand.  These two guides would heavily interfere with
-### each other (they woulg target the seeding bases of each other). It
+### the active site, those CC are the seeding point for a guide on the
+### reverse strand. These two guides would heavily interfere with
+### each other (they would target the seeding bases of each other). It
 ### all depend if the guides are used independently or as a mixture
 ######################################################################
 
 # parse the command line arguments:
-parser = argparse.ArgumentParser(description='Given a RsfSeq Nucleotide ID or '
+parser = argparse.ArgumentParser(description='Given a RefSeq Nucleotide ID or '
                                  'a FASTA sequence, '
                                  'return all possible guides for the Cas9 '
                                  'protein. STDOUT gives the list of sequences, '
@@ -211,7 +211,7 @@ def getIntronGuides(gid, gassembly, gSeq):
                 strand = '+'
                 newStart = m.start()
                 toPrint = 0
-                beginning = newStart-20
+                beginning = newStart-21
                 end = newStart+2
                 if beginning <= 0:
                     continue
@@ -223,7 +223,7 @@ def getIntronGuides(gid, gassembly, gSeq):
                 toPrint = 1
                 # check if there are Cs in the active region. Plus 1
                 # if there are none
-                activeReg = str(guideSeq[0:5])
+                activeReg = str(guideSeq[0:7])
                 cMatch = len(re.findall('C', activeReg))
                 # Give higher score if there are few matches
                 toPrint += (5 - cMatch)
@@ -354,7 +354,7 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
     if (diff > 20):
 
         toPrint = 0    
-        beginning = newStart-20
+        beginning = newStart-21
         end = newStart+2
         guideSeq = str(cdsSeq[beginning:end])
         if args.tableLog:
@@ -377,10 +377,10 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
         else:
             print('Genome match FOR: ', mGenome, file=sys.stderr)
             print('Genome match REV: ', mrGenome, file=sys.stderr)
-        cMatch = len(re.findall('C', str(cdsSeq[beginning:beginning+5])))
+        cMatch = len(re.findall('C', str(cdsSeq[beginning:beginning+6])))
 
         if not args.tableLog:
-            print('Matching sequence: ', str(cdsSeq[beginning:beginning+5]), file=sys.stderr)
+            print('Matching sequence:', str(cdsSeq[beginning:beginning+6]), file=sys.stderr)
 
         # Get the residues in the 5 last bases
         if not args.tableLog:
@@ -415,7 +415,7 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
                         print('['+m2+']', file=sys.stderr, end=' ')
                     #toPrint -= 1
             newBeg = newBeg+3
-            if newBeg > beginning+6:
+            if (newBeg - frame) > beginning+7:
                 break
             
         for m1 in list(set(printMut)):
@@ -525,7 +525,7 @@ for index, newStart in enumerate(revMatch): # find the seed
     if (diff > 20 and newStart+22 < cdslength):
 
         toPrint = 0
-        end = newStart+22
+        end = newStart+23
         beginning = newStart
         guideSeq = str(cdsSeq[beginning:end])
         guideSeqRC = str(cdsSeq[beginning:end].reverse_complement())
@@ -546,16 +546,16 @@ for index, newStart in enumerate(revMatch): # find the seed
         else:
             print('Genome match FOR: ', mGenome, file=sys.stderr)
             print('Genome match REV: ', mrGenome, file=sys.stderr)
-        cMatch = len(re.findall('G', str(cdsSeq[(end-5):end])))
+        cMatch = len(re.findall('G', str(cdsSeq[(end-6):end])))
 
         if not args.tableLog:
-            print('Matching sequence: ', str(cdsSeq[(end-5):end]), file=sys.stderr)
+            print('Matching sequence: ', str(cdsSeq[(end-6):end]), file=sys.stderr)
         
 
         # Get the residues in the 5 last bases
         if not args.tableLog:
             print('Possible substit: ', file=sys.stderr, end=' ')
-        newBeg = end-6
+        newBeg = end-7
         printMut = []
         okMut = 0
         while True:
