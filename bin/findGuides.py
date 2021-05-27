@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 from __future__ import print_function
 import sys
@@ -7,7 +7,7 @@ import argparse
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio import Entrez
-#import mysql.connector
+import mysql.connector
 
 ######################################################################
 ### There is still one major issue to solve: if a guide has a CC in
@@ -37,10 +37,13 @@ parser.add_argument('-g','--genome',
                     help='Single FASTA file containing the genome sequence. '
                     'It must follow UCSC Genome Browser chromosome nomenclature:'
                     ' chr1, chr2, chrX, etc... '
-                    'It is used to check for guide multiple matches.',
+                    'It is used to check for guide multiple matches. '
+                    'If missing, search is abolished.',
                     type=str)
 parser.add_argument('-n','--nosearch',
                     help='Suppress search of matches in the genome. '
+                    'Even when providing a genome file. Useful when '
+                    'searching guides in introns. '
                     'Deafault = seach the genome',
                     action='store_true',
                     )
@@ -283,28 +286,26 @@ else:
     mutations = ['A1000000000A']
     
 # read the genome sequence
-
 nosearch = args.nosearch
-
-if nosearch:
-    print("## Skip reading genome...", file=sys.stderr)
-else:
-    if args.genome:
-        file_path = args.genome
-    else:
-        sys.exit("ERROR: please provide the genome file")
+if args.genome:
+    file_path = args.genome
     FileCheck(file_path)
-    print("## Reading genome...", file=sys.stderr, end='')
+    print("## Genome file:", file_path, file=sys.stderr, end='')
     genome = {}
-    for record in SeqIO.parse(open(file_path, "rU"), "fasta"):
+    for record in SeqIO.parse(open(file_path, "rt"), "fasta"):
         chrom = record.id
         sequence = str(record.seq)
         genome[chrom] = sequence
-        print("Done", file=sys.stderr)
+    print("Done", file=sys.stderr)
+else:
+    print("## Genome file not provided, skipping genme search",
+          file=sys.stderr)
+    nosearch = True
 
 # specify which entry to download
-print("## Fetching sequence...", file=sys.stderr, end='')
-handle = Entrez.efetch(db="nucleotide", id=refSeqId, rettype="gb", retmode="text")
+print("## Fetching sequence from GenBank...", file=sys.stderr, end='')
+handle = Entrez.efetch(db="nucleotide", id=refSeqId, rettype="gb",
+                       retmode="text")
 record = SeqIO.read(handle, "genbank")
 print("Done", file=sys.stderr)
 
