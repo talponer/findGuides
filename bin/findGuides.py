@@ -7,7 +7,7 @@ import argparse
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio import Entrez
-import mysql.connector
+#import mysql.connector
 
 ######################################################################
 ### There is still one major issue to solve: if a guide has a CC in
@@ -37,10 +37,13 @@ parser.add_argument('-g','--genome',
                     help='Single FASTA file containing the genome sequence. '
                     'It must follow UCSC Genome Browser chromosome nomenclature:'
                     ' chr1, chr2, chrX, etc... '
-                    'It is used to check for guide multiple matches',
-                    type=str,
-                    default='/home/rdreos/Projects/annotation/human/'
-                    'Homo_sapiens.GRCh38.89.dna.primary_assembly.fa')
+                    'It is used to check for guide multiple matches.',
+                    type=str)
+parser.add_argument('-n','--nosearch',
+                    help='Suppress search of matches in the genome. '
+                    'Deafault = seach the genome',
+                    action='store_true',
+                    )
 parser.add_argument('-t','--tableLog',
                     help='Write log in tabular format. '
                     'Useful for downstream guides\' analysis and selection',
@@ -217,9 +220,14 @@ def getIntronGuides(gid, gassembly, gSeq):
                     continue
                 guideSeq = chrSeqIntron[beginning:end]
                 guideSeqRC = str(Seq(guideSeq).reverse_complement())
-                mGenome = search_fasta(guideSeq, gSeq) # find genome matches
-                mrGenome = search_fasta(guideSeqRC, gSeq)
-                totMatches = mGenome + mrGenome
+                if not nosearch:
+                    mGenome = search_fasta(guideSeq, gSeq) # find genome matches
+                    mrGenome = search_fasta(guideSeqRC, gSeq)
+                    totMatches = mGenome + mrGenome
+                else:
+                    mGenome = 0
+                    mrGenome = 0
+                    totMatches = 1
                 toPrint = 1
                 # check if there are Cs in the active region. Plus 1
                 # if there are none
@@ -275,18 +283,24 @@ else:
     mutations = ['A1000000000A']
     
 # read the genome sequence
-if args.genome:
-    file_path = args.genome
 
-FileCheck(file_path)
+nosearch = args.nosearch
 
-print("## Reading genome...", file=sys.stderr, end='')
-genome = {}
-for record in SeqIO.parse(open(file_path, "rU"), "fasta"):
-    chrom = record.id
-    sequence = str(record.seq)
-    genome[chrom] = sequence
-print("Done", file=sys.stderr)
+if nosearch:
+    print("## Skip reading genome...", file=sys.stderr)
+else:
+    if args.genome:
+        file_path = args.genome
+    else:
+        sys.exit("ERROR: please provide the genome file")
+    FileCheck(file_path)
+    print("## Reading genome...", file=sys.stderr, end='')
+    genome = {}
+    for record in SeqIO.parse(open(file_path, "rU"), "fasta"):
+        chrom = record.id
+        sequence = str(record.seq)
+        genome[chrom] = sequence
+        print("Done", file=sys.stderr)
 
 # specify which entry to download
 print("## Fetching sequence...", file=sys.stderr, end='')
@@ -367,11 +381,16 @@ for m in re.finditer('GG', str(cdsSeq)): # find the seed
             print('Transcript strand: Forward', file=sys.stderr)
             print('Position in CDS:  ', str(beginning)+'..'+str(end), file=sys.stderr)
         guideSeqRC = str(cdsSeq[beginning:end].reverse_complement())
-        mGenome = search_fasta(guideSeq, genome) # find genome matches
-        mrGenome = search_fasta(guideSeqRC, genome)
-        #mGenome = 1
-        #mrGenome = 0
-        totMatches = mGenome + mrGenome
+
+        if not nosearch:
+            mGenome = search_fasta(guideSeq, genome) # find genome matches
+            mrGenome = search_fasta(guideSeqRC, genome)
+            totMatches = mGenome + mrGenome
+        else:
+            mGenome = 0
+            mrGenome = 0
+            totMatches = 1
+
         if args.tableLog:
             print(mGenome,mrGenome, sep="\t", end="\t", file=sys.stderr)
         else:
@@ -536,11 +555,14 @@ for index, newStart in enumerate(revMatch): # find the seed
             print('Sequence:         ', guideSeqRC, file=sys.stderr)
             print('Transcript strand: REV', file=sys.stderr)
             print('Position in CDS:  ', str(end)+'..'+str(beginning), file=sys.stderr)
-        mGenome = search_fasta(guideSeq, genome) # find genome matches
-        mrGenome = search_fasta(guideSeqRC, genome)
-        #mGenome = 1
-        #mrGenome = 0
-        totMatches = mGenome + mrGenome
+        if not nosearch:
+            mGenome = search_fasta(guideSeq, genome) # find genome matches
+            mrGenome = search_fasta(guideSeqRC, genome)
+            totMatches = mGenome + mrGenome
+        else:
+            mGenome = 0
+            mrGenome = 0
+            totMatches = 1
         if args.tableLog:
             print(mGenome, mrGenome, sep="\t", end=rend, file=sys.stderr)
         else:
